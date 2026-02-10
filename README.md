@@ -131,7 +131,7 @@ CREATE TABLE autobot.formulario (
 );
 ```
 
-## 🔑 Variáveis de Ambiente
+##  Variáveis de Ambiente
 
 | Variável | Descrição | Exemplo |
 |----------|-----------|---------|
@@ -143,7 +143,7 @@ CREATE TABLE autobot.formulario (
 | `DB_USER` | Usuário do banco | `seu_usuario` |
 | `DB_PASSWORD` | Senha do banco | `sua_senha` |
 
-## 📁 Estrutura do Projeto
+##  Estrutura do Projeto
 
 ```
 API_EMAIL_FLOWBIZ/
@@ -173,7 +173,7 @@ python app.py
 
 A aplicação exibe logs no console. Erros de banco de dados e requisições à API FlowBiz são registrados.
 
-## 🔐 Boas Práticas de Segurança
+##  Boas Práticas de Segurança
 
 1. **Nunca** commitar arquivos `.env` com credenciais reais
 2. **Nunca** commitar `flowbiz_campaign_mapping.json` com IDs reais
@@ -182,7 +182,7 @@ A aplicação exibe logs no console. Erros de banco de dados e requisições à 
 5. Mantenha as dependências atualizadas
 6. Use variáveis de ambiente para todas as credenciais
 
-## ⚠️ Antes de fazer Push no GitHub
+##  Antes de fazer Push no GitHub
 
 Execute esta checklist:
 
@@ -199,17 +199,17 @@ git log --all --sources -- .env
 git log --all --sources -- flowbiz_campaign_mapping.json
 ```
 
-## 📝 Licença
+##  Licença
 
 [Adicione sua licença aqui]
 
-## 👥 Contribuindo
+##  Contribuindo
 
 1. Crie uma branch para sua feature: `git checkout -b feature/minha-feature`
 2. Commit suas mudanças: `git commit -am 'Adiciona minha feature'`
 3. Push para a branch: `git push origin feature/minha-feature`
 4. Abra um Pull Request
 
-## 📞 Suporte
+##  Suporte
 
 Para problemas ou dúvidas, abra uma issue no repositório.
