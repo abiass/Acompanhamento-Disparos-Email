@@ -1,0 +1,12 @@
+{
+  "flowbiz_campaign_mappings": [
+    {
+      "flowbiz_campaign_id": "123456",
+      "db_campanha_id": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "flowbiz_campaign_id": "123457",
+      "db_campanha_id": "11111111-1111-1111-1111-111111111111"
+    }
+  ]
+}
