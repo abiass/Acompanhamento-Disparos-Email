@@ -1,7 +1,6 @@
 import os
 import io
 import csv
-import json
 from typing import Any, Dict, Tuple, List
 
 import requests
@@ -18,25 +17,8 @@ except ImportError:
 	openpyxl = None
 
 
-def _load_campaign_mapping() -> Dict[str, str]:
-	"""Carrega o mapeamento de campanhas Flowbiz para IDs do banco de dados."""
-	try:
-		with open('flowbiz_campaign_mapping.json', 'r') as f:
-			data = json.load(f)
-			# Criar mapa: flowbiz_campaign_id -> db_campanha_id
-			mapping = {}
-			for item in data.get('flowbiz_campaign_mappings', []):
-				flowbiz_id = str(item.get('flowbiz_campaign_id', ''))
-				db_id = item.get('db_campanha_id')
-				if flowbiz_id and db_id:
-					mapping[flowbiz_id] = db_id
-			return mapping
-	except Exception as e:
-		print(f"Erro ao carregar mapeamento de campanhas: {e}")
-		return {}
-
-def _get_db_campaign_stats(db_campanha_id: str) -> Dict[str, int]:
-	"""Busca Qtd Acessos e Qtd Leads para uma campanha no banco de dados."""
+def _get_db_campaign_stats_by_flowbiz_id(flowbiz_campaign_id: str) -> Dict[str, int]:
+	"""Busca Qtd Acessos e Qtd Leads usando o id_campanha_flowbiz."""
 	if not psycopg2:
 		return {"QtdAcessos": 0, "QtdLeads": 0}
 	
@@ -51,11 +33,27 @@ def _get_db_campaign_stats(db_campanha_id: str) -> Dict[str, int]:
 		cur = conn.cursor()
 		
 		# Contar acessos
-		cur.execute('SELECT COUNT(*) FROM autobot.campanha_acessos WHERE campanha_id = %s', (db_campanha_id,))
+		cur.execute(
+			"""
+			SELECT COUNT(*)
+			FROM autobot.campanha_acessos ca
+			JOIN autobot.campanhas c ON c.id = ca.campanha_id
+			WHERE c.id_campanha_flowbiz = %s
+			""",
+			(flowbiz_campaign_id,)
+		)
 		qtd_acessos = cur.fetchone()[0]
 		
 		# Contar leads (formularios)
-		cur.execute('SELECT COUNT(*) FROM autobot.formulario WHERE campanha_id = %s', (db_campanha_id,))
+		cur.execute(
+			"""
+			SELECT COUNT(*)
+			FROM autobot.formulario f
+			JOIN autobot.campanhas c ON c.id = f.campanha_id
+			WHERE c.id_campanha_flowbiz = %s
+			""",
+			(flowbiz_campaign_id,)
+		)
 		qtd_leads = cur.fetchone()[0]
 		
 		cur.close()
@@ -63,7 +61,7 @@ def _get_db_campaign_stats(db_campanha_id: str) -> Dict[str, int]:
 		
 		return {"QtdAcessos": qtd_acessos, "QtdLeads": qtd_leads}
 	except Exception as e:
-		print(f"Erro ao buscar stats da campanha {db_campanha_id}: {e}")
+		print(f"Erro ao buscar stats da campanha {flowbiz_campaign_id}: {e}")
 		return {"QtdAcessos": 0, "QtdLeads": 0}
 
 def create_app() -> Flask:
@@ -84,9 +82,6 @@ def create_app() -> Flask:
 	app.config["FLOWBIZ_TIMEOUT_SECONDS"] = float(
 		os.getenv("FLOWBIZ_TIMEOUT_SECONDS", "20")
 	)
-
-	# Carregar mapeamento de campanhas
-	app.config["CAMPAIGN_MAPPING"] = _load_campaign_mapping()
 
 	# Coletar todas as chaves da forma FLOWBIZ_API_KEY_* (várias contas)
 	api_keys = {k: v for k, v in os.environ.items() if k.startswith("FLOWBIZ_API_KEY_") and v}
@@ -420,7 +415,6 @@ def create_app() -> Flask:
 		if action == "list" and status == 200 and isinstance(payload, dict) and "Campaigns" in payload:
 			try:
 				api_keys = app.config.get("FLOWBIZ_API_KEYS", {})
-				campaign_mapping = app.config.get("CAMPAIGN_MAPPING", {})
 				endpoint = app.config["FLOWBIZ_ENDPOINT"]
 				timeout = app.config["FLOWBIZ_TIMEOUT_SECONDS"]
 				default_api_key = app.config.get("FLOWBIZ_API_KEY_Voxcall", "").strip()
@@ -438,11 +432,10 @@ def create_app() -> Flask:
 					campaign["QtdLeads"] = 0
 					campaign["QtdAcessos"] = 0
 					
-					# Buscar ID da campanha no banco de dados usando mapeamento
+					# Buscar stats direto pelo id_campanha_flowbiz
 					campaign_flowbiz_id = str(campaign.get("CampaignID", ""))
-					if campaign_flowbiz_id in campaign_mapping:
-						db_campaign_id = campaign_mapping[campaign_flowbiz_id]
-						stats = _get_db_campaign_stats(db_campaign_id)
+					if campaign_flowbiz_id:
+						stats = _get_db_campaign_stats_by_flowbiz_id(campaign_flowbiz_id)
 						campaign["QtdLeads"] = stats.get("QtdLeads", 0)
 						campaign["QtdAcessos"] = stats.get("QtdAcessos", 0)
 					
@@ -561,12 +554,43 @@ def create_app() -> Flask:
 		from flask import send_from_directory
 		return send_from_directory(os.path.dirname(__file__), "templates/campanhas.html")
 	
-	# Rotas /listas e /contatos removidas — apenas /campanhas permanece disponível.
+	@app.route("/dashboard")
+	def serve_dashboard():
+		from flask import send_from_directory
+		return send_from_directory(os.path.dirname(__file__), "templates/dashboard.html")
+	
 	
 	@app.route("/static/<path:filename>")
 	def serve_static(filename):
 		from flask import send_from_directory
 		return send_from_directory(os.path.join(os.path.dirname(__file__), "static"), filename)
+
+	# Inicializar Dash (opcional). Se o módulo não existir ou houver erro, apenas logar e continuar.
+	try:
+		from dashboard_app import init_dash
+		init_dash(app)
+	except Exception as e:
+		app.logger.warning(f"Dash não inicializado: {e}")
+		msg = str(e)
+		# Rota fallback amigável para informar que o Dash não está disponível
+		@app.route("/dash")
+		def _dash_redirect():
+			from flask import redirect
+			# Redireciona para a versão com barra
+			return redirect("/dash/")
+
+		@app.route("/dash/")
+		def _dash_unavailable():
+			return (
+				"<h3>Dash não inicializado</h3>"
+				f"<p>Motivo: {msg}</p>"
+				"<p>Instale as dependências: <code>pip install dash plotly dash-bootstrap-components pandas</code></p>"
+				"<p>Após, reinicie a aplicação e abra <a href='/dash/'>/dash/</a>.</p>"
+			), 200
+
+		@app.route('/dash/status')
+		def _dash_status():
+			return {"status": "dash-unavailable", "reason": msg}, 200
 
 	return app
 

@@ -78,6 +78,12 @@ Edite `flowbiz_campaign_mapping.json` e adicione seus mapeamentos:
 pip install -r requirements.txt
 ```
 
+> Observação: o `requirements.txt` agora inclui dependências para o dashboard (Dash, Plotly, dash-bootstrap-components e pandas). Se preferir instalar manualmente:
+
+```bash
+pip install Flask requests python-dotenv psycopg2-binary openpyxl dash plotly dash-bootstrap-components pandas
+```
+
 Se o arquivo `requirements.txt` não existir, instale manualmente:
 
 ```bash

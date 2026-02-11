@@ -78,8 +78,10 @@
         .then(res => res.text())
         .then(html => {
           document.getElementById('navbar-container').innerHTML = html;
-          document.getElementById('nav-campanhas')?.classList.add('bg-blue-500');
-          document.getElementById('navbar-title').textContent = 'Campanhas';
+          const navCampanhas = document.getElementById('nav-campanhas');
+          if (navCampanhas) navCampanhas.classList.add('bg-blue-500');
+          const navbarTitle = document.getElementById('navbar-title');
+          if (navbarTitle) navbarTitle.textContent = 'Campanhas';
         });
 
       function getStatusBadge(status) {

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Use explicit Plotly version to avoid outdated 'latest' warning -->
+    <script src="https://cdn.plot.ly/plotly-5.16.0.min.js"></script>
+    <style>
+        html, body { height: 100%; }
+        iframe { display: block; }
+    </style>
+</head>
+<body class="bg-gray-50 pt-10">
+    <div id="navbar-container"></div>
+
+      <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-3xl font-extrabold text-gray-900">Painel de Métricas</h1>
+          <p class="mt-1 text-sm text-gray-600">Visão consolidada das campanhas e principais métricas</p>
+        </div>
+        <div class="flex items-center space-x-4">
+          <div id="kpi-campaigns" class="bg-white shadow rounded-lg px-4 py-3 text-center">
+            <p class="text-xs text-gray-500">Campanhas</p>
+            <p id="kpi-campaigns-val" class="text-xl font-semibold text-blue-600">-</p>
+            <p id="kpi-updated" class="text-xs text-gray-400 mt-1">—</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="refresh-dashboard" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 focus:outline-none">Atualizar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="full-width-iframe bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+        <div class="relative">
+          <div id="iframe-loader" class="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+            <div class="text-center">
+              <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <p class="mt-2 text-sm text-gray-600">Carregando painel...</p>
+            </div>
+          </div>
+          <iframe id="dash-iframe" src="/dash/" style="width:100%; height:88vh; border:0; border-radius:10px;" title="Painel de Métricas"></iframe>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 text-sm text-gray-500">Dica: use o botão <strong>Atualizar</strong> para recarregar os dados do painel.</div>
+      </div>
+
+    </div>
+
+    <style>
+      :root { --dash-gutter: 0.25rem; }
+      /* Pequenos ajustes visuais adicionais */
+      /* Contêiner full-width com pequeno gutter lateral */
+      .full-width-iframe {
+        /* largura = 100% menos 2x o gutter (1 gutter em cada lado) */
+        width: calc(100% - (var(--dash-gutter) * 2));
+        max-width: 100%;
+        position: relative;
+        left: 50%;
+        transform: translateX(-50%);
+        padding-left: var(--dash-gutter);
+        padding-right: var(--dash-gutter);
+        box-sizing: border-box;
+      }
+      /* iframe ocupa todo o contêiner (com pequeno espaço lateral) */
+      #dash-iframe { width: 100%; border-radius: 0.5rem; box-shadow: 0 10px 25px rgba(15,23,42,0.06); display: block; }
+      #kpi-campaigns { min-width: 120px; }
+      @media (max-width: 640px) {
+        #dash-iframe { height: 72vh !important; }
+      }
+    </style>
+
+    <script>
+    // Carregar navbar com logs, cache-bust e fallback visível em caso de erro
+    console.log('Iniciando carregamento da navbar em dashboard.html');
+    if (!window.fetch) {
+      console.error('fetch não disponível no navegador');
+      document.getElementById('navbar-container').innerHTML = '<div class="bg-red-100 text-red-700 px-4 py-2">Navegador não suporta fetch</div>';
+    } else {
+      const navUrl = '/static/navbar.html?t=' + Date.now();
+      console.log('Tentando buscar', navUrl);
+      fetch(navUrl)
+        .then(res => {
+          console.log('Resposta fetch navbar', res && res.status);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.text();
+        })
+        .then(html => {
+          document.getElementById('navbar-container').innerHTML = html;
+          // Marcar item ativo (safe)
+          const navDashboard = document.getElementById('nav-dashboard');
+          if (navDashboard) navDashboard.classList.add('bg-blue-500');
+          const navCampanhas = document.getElementById('nav-campanhas');
+          if (navCampanhas) navCampanhas.classList.remove('bg-blue-500');
+          // Ajuste seguro do título quando existir
+          const navbarTitle = document.getElementById('navbar-title');
+          if (navbarTitle) navbarTitle.textContent = 'Painel';
+          console.log('Navbar carregada com sucesso');
+        })
+        .catch(err => {
+          console.error('Erro ao carregar navbar:', err);
+          const container = document.getElementById('navbar-container');
+          if (container) {
+            container.innerHTML = `<div class="bg-red-100 text-red-700 px-4 py-2">Erro ao carregar a navbar: ${err.message}</div>`;
+          }
+        });
+    }
+
+    // Spinner/loader para iframe
+    const iframe = document.getElementById('dash-iframe');
+    const loader = document.getElementById('iframe-loader');
+    iframe.addEventListener('load', () => {
+      loader.style.display = 'none';
+    });
+
+    // Atualizar KPI de campanhas
+    async function updateKpi() {
+      try {
+        const res = await fetch('/dash/metrics?t=' + Date.now(), {cache: 'no-store'});
+        const j = await res.json();
+        if (j && typeof j.count === 'number') {
+          document.getElementById('kpi-campaigns-val').textContent = j.count;
+          const hh = new Date().toLocaleTimeString();
+          document.getElementById('kpi-updated').textContent = `Atualizado às ${hh}`;
+        } else {
+          document.getElementById('kpi-campaigns-val').textContent = '-';
+        }
+      } catch (e) {
+        console.error('Erro ao atualizar KPI:', e);
+        document.getElementById('kpi-campaigns-val').textContent = '-';
+        document.getElementById('kpi-updated').textContent = 'Erro ao atualizar';
+      }
+    }
+
+    document.getElementById('refresh-dashboard').addEventListener('click', () => {
+      loader.style.display = 'flex';
+      iframe.contentWindow.location.reload();
+      updateKpi();
+    });
+
+    // Atualizar ao carregar e a cada 60s
+    updateKpi();
+    setInterval(updateKpi, 60*1000);
+
+      function getStatusBadge(status) {
+        const badges = {
+          'Draft': '<span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Rascunho</span>',
+          'Sent': '<span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Enviado</span>',
+          'Scheduled': '<span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Agendado</span>',
+          'Sending': '<span class="px-3 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">Enviando</span>'
+        };
+        return badges[status] || `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">${status || '-'}</span>`;
+      }
+    </script>
+</body>
+</html>
